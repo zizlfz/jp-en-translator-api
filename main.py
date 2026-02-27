@@ -73,7 +73,9 @@ def root():
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    if model is None or tokenizer is None:
+        raise HTTPException(status_code=503, detail="Model not ready")
+    return {"status": "ok", "model": MODEL_ID}
 
 
 @app.post("/translate", response_model=TranslateResponse)
@@ -104,6 +106,12 @@ def translate_batch(request: BatchTranslateRequest):
         translations = tokenizer.batch_decode(outputs, skip_special_tokens=True)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+
+    if len(translations) != len(request.texts):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Output count mismatch: expected {len(request.texts)}, got {len(translations)}"
+        )
 
     results = [
         TranslateResponse(input=text, translation=translation)

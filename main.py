@@ -7,6 +7,7 @@ import uvicorn
 
 MODEL_ID = "Helsinki-NLP/opus-mt-ja-en"
 REVISION = "e1b0895a1cb46d229c140658331bd34bd3e0bfee"
+MAX_TEXT_LENGTH = 1000
 
 tokenizer = None
 model = None
@@ -82,6 +83,11 @@ def health():
 def translate(request: TranslateRequest):
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
+    if len(request.text) > MAX_TEXT_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Text exceeds maximum length of {MAX_TEXT_LENGTH} characters"
+        )
 
     try:
         inputs = tokenizer(request.text, return_tensors="pt", truncation=True, max_length=512)
@@ -99,6 +105,13 @@ def translate_batch(request: BatchTranslateRequest):
         raise HTTPException(status_code=400, detail="Texts list cannot be empty")
     if len(request.texts) > 32:
         raise HTTPException(status_code=400, detail="Maximum batch size is 32")
+
+    for i, text in enumerate(request.texts):
+        if len(text) > MAX_TEXT_LENGTH:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Text at index {i} exceeds maximum length of {MAX_TEXT_LENGTH} characters"
+            )
 
     try:
         inputs = tokenizer(request.texts, return_tensors="pt", padding=True, truncation=True)

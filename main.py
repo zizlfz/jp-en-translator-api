@@ -63,9 +63,12 @@ def translate(request: TranslateRequest):
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
 
-    inputs = tokenizer(request.text, return_tensors="pt")
-    outputs = model.generate(**inputs)
-    translation = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    try:
+        inputs = tokenizer(request.text, return_tensors="pt", truncation=True, max_length=512)
+        outputs = model.generate(**inputs, max_new_tokens=512)
+        translation = tokenizer.decode(outputs[0], skip_special_tokens=True)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
 
     return TranslateResponse(input=request.text, translation=translation)
 
@@ -77,9 +80,12 @@ def translate_batch(request: BatchTranslateRequest):
     if len(request.texts) > 32:
         raise HTTPException(status_code=400, detail="Maximum batch size is 32")
 
-    inputs = tokenizer(request.texts, return_tensors="pt", padding=True, truncation=True)
-    outputs = model.generate(**inputs)
-    translations = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+    try:
+        inputs = tokenizer(request.texts, return_tensors="pt", padding=True, truncation=True)
+        outputs = model.generate(**inputs, max_new_tokens=512)
+        translations = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
 
     results = [
         TranslateResponse(input=text, translation=translation)

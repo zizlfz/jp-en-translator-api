@@ -1,22 +1,40 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from transformers import AutoTokenizer
 from optimum.onnxruntime import ORTModelForSeq2SeqLM
 import uvicorn
 
+MODEL_ID = "Helsinki-NLP/opus-mt-ja-en"
+REVISION = "e1b0895a1cb46d229c140658331bd34bd3e0bfee"
+
+tokenizer = None
+model = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global tokenizer, model
+    print("Loading model...")
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, revision=REVISION)
+        model = ORTModelForSeq2SeqLM.from_pretrained(
+            MODEL_ID, subfolder="onnx", revision=REVISION
+        )
+        print("Model loaded!")
+    except Exception as e:
+        raise RuntimeError(f"Failed to load model: {e}")
+    yield
+    model = None
+    tokenizer = None
+
+
 app = FastAPI(
     title="Japanese to English Translator API",
     description="Translates Japanese text to English using Helsinki-NLP/opus-mt-ja-en ONNX model",
     version="1.0.0",
+    lifespan=lifespan,
 )
-
-MODEL_ID = "Helsinki-NLP/opus-mt-ja-en"
-REVISION = "e1b0895a1cb46d229c140658331bd34bd3e0bfee"
-
-print("Loading model...")
-tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, revision=REVISION)
-model = ORTModelForSeq2SeqLM.from_pretrained(MODEL_ID, subfolder="onnx", revision=REVISION)
-print("Model loaded!")
 
 
 class TranslateRequest(BaseModel):
